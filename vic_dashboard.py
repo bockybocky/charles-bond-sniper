@@ -5,73 +5,84 @@ import io
 
 # --- 1. 頁面基礎設定 ---
 st.set_page_config(
-    page_title="Charles 戰情室 V13.0", 
+    page_title="Charles 戰情室 V14.0", 
     page_icon="⚡", 
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
 # ==========================================
-# 🎨 核心美化模組 (Pro CSS)
+# 🎨 核心美化模組 (Light Mode CSS)
 # ==========================================
 def inject_custom_css():
     st.markdown("""
         <style>
-        /* 全域字體與背景優化 */
+        /* 強制亮色主題與字體優化 */
         .stApp {
-            background-color: #0E1117;
-            color: #FAFAFA;
+            background-color: #FFFFFF;
+            color: #1F2937; /* 深灰黑 */
+            font-family: 'Segoe UI', 'Roboto', Helvetica, Arial, sans-serif;
         }
         
-        /* 標題漸層特效 (冰藍白金) */
+        /* 標題漸層特效 (皇家海軍藍) */
         h1 {
-            background: linear-gradient(to right, #00c6ff, #0072ff);
+            background: linear-gradient(to right, #003366, #0052cc);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            font-weight: 700 !important;
+            font-weight: 800 !important;
             font-size: 2.5rem !important;
             margin-bottom: 0px;
+            padding-top: 10px;
         }
         
-        /* 側邊欄美化 */
+        /* 側邊欄美化 (淺灰風格) */
         [data-testid="stSidebar"] {
-            background-color: #161B22;
-            border-right: 1px solid #30363D;
+            background-color: #F8F9FA;
+            border-right: 1px solid #E5E7EB;
         }
         
-        /* 移除醜陋的橘色方塊樣式，改用自定義文字 */
+        /* 側邊欄文字 */
         .sidebar-text {
-            color: #8B949E;
+            color: #4B5563;
             font-size: 0.9rem;
             margin-bottom: 20px;
         }
         
-        /* 分頁標籤美化 */
+        /* 分頁標籤美化 (亮色版) */
         .stTabs [data-baseweb="tab-list"] {
             gap: 8px;
             background-color: transparent;
         }
         .stTabs [data-baseweb="tab"] {
             height: 45px;
-            background-color: #21262D;
-            border-radius: 4px;
-            color: #C9D1D9;
-            font-size: 0.95rem;
-            border: 1px solid #30363D;
+            background-color: #F3F4F6;
+            border-radius: 4px; 
+            color: #4B5563;
+            font-size: 1rem;
+            font-weight: 600;
+            border: 1px solid #E5E7EB;
         }
         .stTabs [aria-selected="true"] {
-            background-color: #238636 !important; /* GitHub Green */
+            background-color: #0052cc !important; /* Royal Blue */
             color: white !important;
             border: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
-        /* 調整 metrics 數值顏色 */
+        /* KPI 數字顏色 (深藍) */
         div[data-testid="stMetricValue"] {
             font-size: 1.8rem;
-            color: #58A6FF; /* Sky Blue */
+            color: #003366;
+            font-weight: 700;
         }
         
-        /* 隱藏預設的表格索引 */
+        /* 表格優化 */
+        thead tr th {
+            background-color: #F3F4F6 !important;
+            color: #111827 !important;
+        }
+        
+        /* 隱藏預設索引 */
         thead tr th:first-child {display:none}
         tbody th {display:none}
         </style>
@@ -89,7 +100,7 @@ def render_user_guide():
         * 請至 [iShares US](https://www.ishares.com/us) 搜尋 `ICVT` 下載 CSV。
         
         #### 2️⃣ 戰術看板解讀
-        * **排序邏輯：** 所有名單皆依 **「到期日 (近 -> 遠)」** 排列。越上面的，時間壓力越大。
+        * **排序邏輯：** 所有名單依 **「到期日 (近 -> 遠)」** 排列。
         * **💀 死亡名單：** 價格崩盤 (<$95) 的潛在違約者。
         * **🚀 火箭名單：** 價格飆漲 (>$130) 的強勢股。
         """)
@@ -97,7 +108,6 @@ def render_user_guide():
 # --- 2. 側邊欄：控制中心 ---
 with st.sidebar:
     st.markdown("### 🎛️ 戰術控制台")
-    # 使用自定義 CSS 類別取代 st.info
     st.markdown('<p class="sidebar-text">調整參數以過濾右側戰情名單。</p>', unsafe_allow_html=True)
     
     st.divider()
@@ -147,7 +157,7 @@ def robust_parser(file):
 
 # --- 4. 主程式邏輯 ---
 st.title("Charles Convertible Sniper")
-st.caption("VIC System V13.0 // Authorized Access Only")
+st.caption("VIC System V14.0 // Institutional Edition")
 
 render_user_guide()
 
@@ -189,8 +199,7 @@ if uploaded_file is not None:
                 
                 rocket = df_time[df_time['Bond_Price'] > rocket_price]
 
-                # ⚠️ 關鍵修正：排序邏輯 (Maturity Ascending)
-                # 越近的日期排在越上面
+                # 排序邏輯 (Maturity Ascending)
                 danger = danger.sort_values(by='Maturity_Dt', ascending=True)
                 rocket = rocket.sort_values(by='Maturity_Dt', ascending=True)
                 
@@ -223,7 +232,6 @@ if uploaded_file is not None:
                 show_cols = ['Name', 'Ticker_Search', 'Maturity', 'Bond_Price', 'Coupon (%)']
 
                 with tab_death:
-                    # st.caption(f"篩選條件：價格 < ${danger_price} | 排序：到期日 (近 -> 遠)")
                     if not danger.empty:
                         st.dataframe(
                             danger[show_cols],
@@ -235,7 +243,6 @@ if uploaded_file is not None:
                         st.info("✅ 掃描結果：無高風險威脅。")
 
                 with tab_rocket:
-                    # st.caption(f"篩選條件：價格 > ${rocket_price} | 排序：到期日 (近 -> 遠)")
                     if not rocket.empty:
                         st.dataframe(
                             rocket[show_cols],
