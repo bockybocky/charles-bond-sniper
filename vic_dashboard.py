@@ -3,55 +3,96 @@ import pandas as pd
 from datetime import datetime
 import io
 
-# --- 1. 頁面基礎設定 ---
-st.set_page_config(page_title="VIC 戰情室 V8.0", page_icon="⚡", layout="wide")
-st.title("⚡ Charles 可轉債戰情室 (V8.0 輕量版)")
+# --- 1. 頁面基礎設定 (已更名) ---
+st.set_page_config(page_title="Charles 戰情室 V9.0", page_icon="⚡", layout="wide")
+
+# ==========================================
+# 核心功能：親切的說明模組
+# ==========================================
+def render_user_guide():
+    with st.expander("📖 Charles 指揮官手冊 (第一次使用請點我展開)", expanded=True):
+        st.markdown("""
+        ### 歡迎來到 Charles 專屬可轉債戰情室！ 👋
+        這裡能幫助您從幾百檔債券中，找出「快要違約的地雷」或是「漲翻天的火箭」。
+        
+        ---
+        
+        #### 1️⃣ 第一步：去哪裡找資料？
+        請前往 **iShares 官方網站** 下載最新的持倉數據：
+        * 🔗 **官方網址：** [https://www.ishares.com/us](https://www.ishares.com/us/products/272324/ishares-convertible-bond-etf) (點擊直達 ICVT 頁面)
+        * **怎麼下載：**
+            1. 進入網頁後，向下滑動找到 **"Holdings"** (持倉) 區塊。
+            2. 看到表格右上角有一個 **"Download"** (下載) 按鈕。
+            3. 點擊 **"Detailed Holdings"** 或直接點 **"CSV"**。
+            4. 您會得到一個檔名類似 `ICVT_holdings.csv` 的檔案，把它拖進下面的框框即可！
+
+        ---
+
+        #### 2️⃣ 第二步：參數設定怎麼選？ (左側控制台)
+        
+        **關於「💀 死亡名單」的設定：**
+        
+        * **🔘 勾選「無視票面利率 (只看價格)」 (建議勾選)**
+            * **意思：** 「我不管這家公司當初借錢利息是多少，只要現在債券價格崩盤，我就要抓出來！」
+            * **能抓到什麼？** 能抓到像 **Fisker (FSR)** 這種雖然利息給得高，但公司快倒閉、債券變壁紙的超級地雷。
+            
+        * **⬜ 不勾選 (進階篩選)**
+            * **意思：** 「我只想找那些 **『借了 0% 便宜錢，現在還不出來』** 的公司。」
+            * **原理：** 2021 年很多公司借了 0% 的錢，現在利率 5%，它們無法再借新還舊。
+        
+        ---
+        
+        #### 3️⃣ 第三步：如何解讀結果？
+        * **💀 死亡名單 (紅色)：** 債券價格 < $95 (或您設定的值)。代表市場認為這家公司**還錢有困難**。
+        * **🚀 火箭名單 (綠色)：** 債券價格 > $130。代表股價已經漲飛天了，公司**沒有債務壓力**。
+        """)
 
 # --- 2. 側邊欄：控制中心 ---
 with st.sidebar:
-    st.header("🎛️ 戰術控制台")
+    st.header("🎛️ Charles 戰術控制台")
     
-    # 除錯模式開關
-    debug_mode = st.checkbox("🐞 開啟除錯模式", value=True)
+    st.info("💡 請先閱讀右方的「新手手冊」")
     
-    st.markdown("---")
     # 參數設定
-    danger_price = st.number_input("死亡價格門檻 (<)", value=95.0, step=1.0)
-    rocket_price = st.number_input("火箭價格門檻 (>)", value=130.0, step=5.0)
-    ignore_coupon = st.checkbox("無視票面利率", value=True)
+    st.subheader("💀 死亡名單標準")
+    danger_price = st.slider("債券價格低於多少算危險？", 50.0, 100.0, 95.0, 1.0)
+    ignore_coupon = st.checkbox("無視票面利率 (只看價格)", value=True, help="勾選後，只要價格低於設定值就會顯示。")
+    
+    st.subheader("🚀 火箭名單標準")
+    rocket_price = st.slider("債券價格高於多少算火箭？", 100.0, 200.0, 130.0, 5.0)
+
+    st.markdown("---")
+    debug_mode = st.checkbox("🐞 開啟除錯模式 (如果沒反應請勾此)", value=False)
 
 # --- 3. 核心清洗引擎 ---
 def clean_currency(x):
-    if isinstance(x, (int, float)):
-        return x
-    if pd.isna(x) or x == '-':
-        return None
-    # 移除所有可能的干擾字元
+    if isinstance(x, (int, float)): return x
+    if pd.isna(x) or str(x).strip() in ['-', '']: return None
     clean_str = str(x).replace('$', '').replace(',', '').replace('"', '').strip()
-    try:
-        return float(clean_str)
-    except:
-        return None
+    try: return float(clean_str)
+    except: return None
 
 def robust_parser(file):
     bytes_data = file.getvalue()
     text_data = None
+    # 嘗試多種編碼
     for enc in ['utf-8', 'cp1252', 'latin1']:
         try:
             text_data = bytes_data.decode(enc, errors='ignore')
             break
         except: continue
             
-    if not text_data: return None, "無法解碼檔案"
+    if not text_data: return None, "無法解碼檔案，請確認格式。"
 
     lines = text_data.splitlines()
     header_idx = -1
+    # 智慧搜尋標題列
     for i, line in enumerate(lines[:50]):
         if "Name" in line and "Market Value" in line:
             header_idx = i
             break
             
-    if header_idx == -1: return None, "找不到標題列"
+    if header_idx == -1: return None, "找不到標題列 (需包含 Name 和 Market Value)"
 
     try:
         clean_content = "\n".join(lines[header_idx:])
@@ -61,7 +102,13 @@ def robust_parser(file):
         return None, str(e)
 
 # --- 4. 主程式邏輯 ---
-uploaded_file = st.file_uploader("📂 請上傳 iShares CSV 檔案", type=['csv'])
+st.title("⚡ Charles 可轉債狙擊戰情室")
+
+# 呼叫新手引導
+render_user_guide()
+
+st.markdown("### 📂 上傳戰略數據")
+uploaded_file = st.file_uploader("請將 iShares 下載的 CSV 檔拖曳到這裡", type=['csv'])
 
 if uploaded_file is not None:
     df, error_msg = robust_parser(uploaded_file)
@@ -69,30 +116,31 @@ if uploaded_file is not None:
     if error_msg:
         st.error(f"❌ 檔案讀取失敗: {error_msg}")
     else:
-        # 除錯預覽
         if debug_mode:
-            with st.expander("🐞 原始資料預覽", expanded=False):
-                st.dataframe(df.head())
+            st.warning("🐞 除錯模式已開啟：顯示原始資料前 5 筆")
+            st.dataframe(df.head())
 
         try:
+            # 標準化欄位名稱
             df.columns = df.columns.str.strip()
             
-            # 清洗與計算
+            # 數據清洗
             df['Market_Clean'] = df['Market Value'].apply(clean_currency)
             df['Par_Clean'] = df['Par Value'].apply(clean_currency)
             df['Maturity_Dt'] = pd.to_datetime(df['Maturity'], errors='coerce')
             
+            # 計算價格
             df_valid = df.dropna(subset=['Market_Clean', 'Par_Clean', 'Maturity_Dt']).copy()
             df_valid['Bond_Price'] = (df_valid['Market_Clean'] / df_valid['Par_Clean']) * 100
             
-            # 篩選 2026-2027
+            # 鎖定 2026-2027
             mask_date = (df_valid['Maturity_Dt'] >= datetime(2026, 1, 1)) & \
                         (df_valid['Maturity_Dt'] <= datetime(2027, 12, 31))
             df_time = df_valid[mask_date].copy()
             
-            st.success(f"✅ 分析完成！鎖定 {len(df_time)} 筆關鍵資料")
-
             if len(df_time) > 0:
+                st.success(f"✅ 分析完成！在 2026-2027 年到期的債券中，共鎖定 {len(df_time)} 檔標的。")
+                
                 # 篩選名單
                 if ignore_coupon:
                     danger = df_time[df_time['Bond_Price'] < danger_price]
@@ -102,41 +150,44 @@ if uploaded_file is not None:
                 
                 rocket = df_time[df_time['Bond_Price'] > rocket_price]
                 
-                # --- 顯示結果 (使用 Streamlit 原生 Column Config，不依賴 matplotlib) ---
+                # 顯示結果
+                st.markdown("---")
                 col1, col2 = st.columns(2)
                 
                 with col1:
                     st.subheader(f"💀 死亡名單 ({len(danger)})")
+                    st.markdown(f"**篩選標準：** 價格 < ${danger_price}")
                     if not danger.empty:
                         st.dataframe(
                             danger[['Name', 'Maturity', 'Bond_Price', 'Coupon (%)']],
                             column_config={
                                 "Maturity": st.column_config.DateColumn("到期日", format="YYYY-MM-DD"),
-                                "Bond_Price": st.column_config.NumberColumn("債券價格", format="%.2f"),
-                                "Coupon (%)": st.column_config.NumberColumn("利率", format="%.2f%%"),
+                                "Bond_Price": st.column_config.NumberColumn("債券價格 ($)", format="%.2f"),
+                                "Coupon (%)": st.column_config.NumberColumn("利率 (%)", format="%.2f%%"),
                             },
                             use_container_width=True
                         )
                     else:
-                        st.info("無符合條件標的。")
+                        st.info("好消息！目前沒有發現符合此標準的高風險債券。")
 
                 with col2:
                     st.subheader(f"🚀 火箭名單 ({len(rocket)})")
+                    st.markdown(f"**篩選標準：** 價格 > ${rocket_price}")
                     if not rocket.empty:
                         st.dataframe(
                             rocket[['Name', 'Maturity', 'Bond_Price', 'Coupon (%)']],
                             column_config={
                                 "Maturity": st.column_config.DateColumn("到期日", format="YYYY-MM-DD"),
-                                "Bond_Price": st.column_config.NumberColumn("債券價格", format="%.2f"),
-                                "Coupon (%)": st.column_config.NumberColumn("利率", format="%.2f%%"),
+                                "Bond_Price": st.column_config.NumberColumn("債券價格 ($)", format="%.2f"),
+                                "Coupon (%)": st.column_config.NumberColumn("利率 (%)", format="%.2f%%"),
                             },
                             use_container_width=True
                         )
                     else:
-                        st.info("無符合條件標的。")
+                        st.info("目前沒有發現符合此標準的飆漲債券。")
             else:
-                st.warning("⚠️ 此時間區間內無資料。")
+                st.warning("⚠️ 檔案中沒有發現 2026-2027 年到期的債券，請確認您下載的是 ICVT 持倉檔。")
                 
         except Exception as e:
-            st.error(f"❌ 運算錯誤: {e}")
-
+            st.error(f"❌ 運算發生錯誤: {e}")
+            if debug_mode: st.exception(e)
