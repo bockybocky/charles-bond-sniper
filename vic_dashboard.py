@@ -5,7 +5,7 @@ import io
 
 # --- 1. 頁面基礎設定 ---
 st.set_page_config(
-    page_title="Charles 戰情室 V15.0", 
+    page_title="Charles 戰情室 V16.0", 
     page_icon="⚡", 
     layout="wide",
     initial_sidebar_state="expanded"
@@ -108,7 +108,7 @@ with st.sidebar:
     st.divider()
     debug_mode = st.toggle("🐞 除錯模式", value=False)
 
-# --- 3. 核心清洗引擎 (增強版) ---
+# --- 3. 核心清洗引擎 ---
 def clean_currency(x):
     if isinstance(x, (int, float)): return x
     if pd.isna(x) or str(x).strip() in ['-', '']: return None
@@ -116,7 +116,6 @@ def clean_currency(x):
     try: return float(clean_str)
     except: return None
 
-# 智慧欄位搜尋：處理不同檔案的欄位命名差異
 def find_column(df, candidates):
     for col in df.columns:
         for cand in candidates:
@@ -137,7 +136,7 @@ def robust_parser(file):
     lines = text_data.splitlines()
     header_idx = -1
     for i, line in enumerate(lines[:50]):
-        # 放寬條件：只要有 Market Value 就算找到，避免 Name 欄位名稱變動
+        # 放寬條件：只要有 Market Value 就算找到
         if "Market Value" in line and ("Name" in line or "Issuer" in line):
             header_idx = i
             break
@@ -151,7 +150,7 @@ def robust_parser(file):
 
 # --- 4. 主程式邏輯 ---
 st.title("Charles Convertible Sniper")
-st.caption("VIC System V15.0 // Smart Column Detection")
+st.caption("VIC System V16.0 // Stable Core")
 
 render_user_guide()
 
@@ -169,7 +168,7 @@ if uploaded_file is not None:
             st.dataframe(df.head())
 
         try:
-            # 1. 欄位標準化 (去除空白)
+            # 1. 欄位標準化
             df.columns = df.columns.str.strip()
             
             # 2. 智慧尋找關鍵欄位
@@ -179,7 +178,7 @@ if uploaded_file is not None:
             col_maturity = find_column(df, ['Maturity', 'Maturity Date', 'Mat Date', 'Due Date'])
             col_coupon = find_column(df, ['Coupon (%)', 'Coupon', 'Cpn'])
 
-            # 3. 檢查必要欄位是否存在
+            # 3. 檢查
             missing_cols = []
             if not col_name: missing_cols.append("公司名稱 (Name)")
             if not col_market: missing_cols.append("市值 (Market Value)")
@@ -188,28 +187,28 @@ if uploaded_file is not None:
 
             if missing_cols:
                 st.error(f"❌ 檔案缺少關鍵欄位，無法分析: {', '.join(missing_cols)}")
-                st.write("目前偵測到的欄位:", list(df.columns))
             else:
-                # 4. 開始清洗數據
+                # 4. 清洗
                 df['Name_Clean'] = df[col_name]
                 df['Market_Clean'] = df[col_market].apply(clean_currency)
                 df['Par_Clean'] = df[col_par].apply(clean_currency)
                 
-                # 關鍵修正：確保 Maturity_Dt 正確生成
+                # 確保 Maturity_Dt 正確生成
                 df['Maturity_Dt'] = pd.to_datetime(df[col_maturity], errors='coerce')
                 
-                # 若有 Coupon 則清洗，沒有則預設 0
+                # 若有 Coupon 則清洗
                 if col_coupon:
                     df['Coupon_Clean'] = df[col_coupon].apply(clean_currency)
                 else:
                     df['Coupon_Clean'] = 0.0
 
-                # 5. 計算與過濾
+                # 5. 計算
                 df_valid = df.dropna(subset=['Market_Clean', 'Par_Clean', 'Maturity_Dt']).copy()
                 df_valid['Bond_Price'] = (df_valid['Market_Clean'] / df_valid['Par_Clean']) * 100
                 
                 df_valid['Ticker_Search'] = "https://www.google.com/search?q=" + df_valid['Name_Clean'].str.replace(' ', '+') + "+stock+ticker"
                 
+                # 鎖定 2026-2027
                 mask_date = (df_valid['Maturity_Dt'] >= datetime(2026, 1, 1)) & \
                             (df_valid['Maturity_Dt'] <= datetime(2027, 12, 31))
                 df_time = df_valid[mask_date].copy()
@@ -223,9 +222,10 @@ if uploaded_file is not None:
                     
                     rocket = df_time[df_time['Bond_Price'] > rocket_price]
 
-                    # 排序
+                    # 排序：到期日由近到遠
                     danger = danger.sort_values(by='Maturity_Dt', ascending=True)
                     rocket = rocket.sort_values(by='Maturity_Dt', ascending=True)
+                    df_all = df_time.sort_values(by='Maturity_Dt', ascending=True)
                     
                     # --- 顯示 ---
                     st.markdown("---")
@@ -237,19 +237,17 @@ if uploaded_file is not None:
 
                     tab1, tab2, tab3 = st.tabs(["💀 死亡名單", "🚀 火箭名單", "📋 完整戰報"])
                     
-                    # 統一顯示欄位名稱
-                    df_time['Show_Maturity'] = df_time['Maturity_Dt']
-                    df_time['Show_Coupon'] = df_time['Coupon_Clean']
-                    
+                    # 設定欄位對應
+                    # 直接使用已經存在的欄位名：Name_Clean, Maturity_Dt, Coupon_Clean
                     col_cfg = {
                         "Name_Clean": st.column_config.TextColumn("公司名稱", width="large"),
                         "Ticker_Search": st.column_config.LinkColumn("代號", display_text="🔍", width="small"),
-                        "Show_Maturity": st.column_config.DateColumn("到期日", format="YYYY-MM-DD", width="medium"),
+                        "Maturity_Dt": st.column_config.DateColumn("到期日", format="YYYY-MM-DD", width="medium"),
                         "Bond_Price": st.column_config.ProgressColumn("價格強度", format="$%.2f", min_value=0, max_value=200, width="medium"),
-                        "Show_Coupon": st.column_config.NumberColumn("利率", format="%.2f%%", width="small")
+                        "Coupon_Clean": st.column_config.NumberColumn("利率", format="%.2f%%", width="small")
                     }
                     
-                    final_cols = ['Name_Clean', 'Ticker_Search', 'Show_Maturity', 'Bond_Price', 'Show_Coupon']
+                    final_cols = ['Name_Clean', 'Ticker_Search', 'Maturity_Dt', 'Bond_Price', 'Coupon_Clean']
 
                     with tab1:
                         if not danger.empty:
@@ -262,8 +260,9 @@ if uploaded_file is not None:
                         else: st.info("⚠️ 無高動能目標。")
                         
                     with tab3:
-                        st.dataframe(df_time[final_cols].sort_values('Show_Maturity'), column_config=col_cfg, use_container_width=True, hide_index=True)
+                        st.dataframe(df_all[final_cols], column_config=col_cfg, use_container_width=True, hide_index=True)
                 else:
                     st.warning("⚠️ 檔案中未發現 2026-2027 到期目標。")
         except Exception as e:
             st.error(f"❌ 系統錯誤: {e}")
+            if debug_mode: st.exception(e)
