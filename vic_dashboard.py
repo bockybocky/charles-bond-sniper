@@ -3,107 +3,117 @@ import pandas as pd
 from datetime import datetime
 import io
 
-# --- 1. 頁面基礎設定 (寬螢幕 + 標題) ---
+# --- 1. 頁面基礎設定 ---
 st.set_page_config(
-    page_title="Charles 戰情室 V12.0", 
+    page_title="Charles 戰情室 V13.0", 
     page_icon="⚡", 
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
 # ==========================================
-# 🎨 核心美化模組 (CSS Injection)
+# 🎨 核心美化模組 (Pro CSS)
 # ==========================================
 def inject_custom_css():
     st.markdown("""
         <style>
-        /* 全域字體優化 */
+        /* 全域字體與背景優化 */
         .stApp {
-            font-family: 'Roboto', 'Helvetica', sans-serif;
+            background-color: #0E1117;
+            color: #FAFAFA;
         }
         
-        /* 標題漸層特效 */
+        /* 標題漸層特效 (冰藍白金) */
         h1 {
-            background: linear-gradient(45deg, #FF4B2B, #FF416C);
+            background: linear-gradient(to right, #00c6ff, #0072ff);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            font-weight: 800 !important;
-            font-size: 3rem !important;
-            padding-bottom: 20px;
+            font-weight: 700 !important;
+            font-size: 2.5rem !important;
+            margin-bottom: 0px;
+        }
+        
+        /* 側邊欄美化 */
+        [data-testid="stSidebar"] {
+            background-color: #161B22;
+            border-right: 1px solid #30363D;
+        }
+        
+        /* 移除醜陋的橘色方塊樣式，改用自定義文字 */
+        .sidebar-text {
+            color: #8B949E;
+            font-size: 0.9rem;
+            margin-bottom: 20px;
         }
         
         /* 分頁標籤美化 */
         .stTabs [data-baseweb="tab-list"] {
-            gap: 10px;
+            gap: 8px;
+            background-color: transparent;
         }
         .stTabs [data-baseweb="tab"] {
-            height: 50px;
-            white-space: pre-wrap;
-            background-color: #1E1E1E;
-            border-radius: 5px;
-            color: #FFFFFF;
-            font-weight: 600;
+            height: 45px;
+            background-color: #21262D;
+            border-radius: 4px;
+            color: #C9D1D9;
+            font-size: 0.95rem;
+            border: 1px solid #30363D;
         }
         .stTabs [aria-selected="true"] {
-            background-color: #FF4B2B !important;
+            background-color: #238636 !important; /* GitHub Green */
             color: white !important;
+            border: none;
         }
 
-        /* 讓表格頭部更明顯 */
+        /* 調整 metrics 數值顏色 */
+        div[data-testid="stMetricValue"] {
+            font-size: 1.8rem;
+            color: #58A6FF; /* Sky Blue */
+        }
+        
+        /* 隱藏預設的表格索引 */
         thead tr th:first-child {display:none}
         tbody th {display:none}
-        
-        /* 調整 metrics 樣式 */
-        div[data-testid="stMetricValue"] {
-            font-size: 2rem;
-            color: #FF4B2B;
-        }
         </style>
     """, unsafe_allow_html=True)
 
 inject_custom_css()
 
 # ==========================================
-# 📖 親切的說明模組
+# 📖 說明模組
 # ==========================================
 def render_user_guide():
-    with st.expander("📘 Charles 指揮官操作手冊 (點我展開)", expanded=False):
+    with st.expander("📘 指揮官操作手冊 (點我展開)", expanded=False):
         st.markdown("""
-        ### 歡迎回到指揮中心，Charles。
+        #### 1️⃣ 數據源 (iShares US)
+        * 請至 [iShares US](https://www.ishares.com/us) 搜尋 `ICVT` 下載 CSV。
         
-        #### 1️⃣ 獲取情資 (iShares 官網)
-        1. 前往 **[iShares US 首頁](https://www.ishares.com/us)**。
-        2. 搜尋 **`ICVT`** -> 進入 **iShares Convertible Bond ETF** 頁面。
-        3. 下滑至 **"Holdings"** -> 點擊 **"Download"** -> 選擇 **"CSV"**。
-        4. 將檔案拖入下方上傳區。
-
-        #### 2️⃣ 戰術儀表板解讀
-        * **💀 死亡名單 (紅色區)：** 價格 < $95。暗示償債風險高，適合空方狙擊。
-        * **🚀 火箭名單 (綠色區)：** 價格 > $130。暗示股價飆漲，適合順勢操作。
-        * **🔍 找代號：** 點擊表格內的「放大鏡」，系統將自動檢索美股代號。
+        #### 2️⃣ 戰術看板解讀
+        * **排序邏輯：** 所有名單皆依 **「到期日 (近 -> 遠)」** 排列。越上面的，時間壓力越大。
+        * **💀 死亡名單：** 價格崩盤 (<$95) 的潛在違約者。
+        * **🚀 火箭名單：** 價格飆漲 (>$130) 的強勢股。
         """)
 
 # --- 2. 側邊欄：控制中心 ---
 with st.sidebar:
-    st.title("🎛️ 戰術控制台")
-    st.caption("Tactical Control Panel")
+    st.markdown("### 🎛️ 戰術控制台")
+    # 使用自定義 CSS 類別取代 st.info
+    st.markdown('<p class="sidebar-text">調整參數以過濾右側戰情名單。</p>', unsafe_allow_html=True)
     
-    st.markdown("---")
+    st.divider()
     
     # 參數設定
-    st.subheader("💀 死亡鎖定 (Short)")
+    st.markdown("#### 💀 死亡鎖定 (Short)")
     danger_price = st.slider("危險價格門檻", 50.0, 100.0, 95.0, 1.0)
     ignore_coupon = st.checkbox("無視票面利率 (只看價格)", value=True)
     
-    st.markdown("---")
+    st.divider()
     
-    st.subheader("🚀 火箭鎖定 (Long)")
+    st.markdown("#### 🚀 火箭鎖定 (Long)")
     rocket_price = st.slider("火箭價格門檻", 100.0, 200.0, 130.0, 5.0)
 
-    st.markdown("---")
+    st.divider()
     debug_mode = st.toggle("🐞 除錯模式", value=False)
-    
-    st.info("💡 調整滑桿可即時過濾右側名單。")
 
 # --- 3. 核心清洗引擎 ---
 def clean_currency(x):
@@ -136,12 +146,11 @@ def robust_parser(file):
     except Exception as e: return None, str(e)
 
 # --- 4. 主程式邏輯 ---
-st.title("⚡ Charles Convertible Sniper")
-st.caption("VIC System V12.0 // Authorized Access Only")
+st.title("Charles Convertible Sniper")
+st.caption("VIC System V13.0 // Authorized Access Only")
 
 render_user_guide()
 
-# 上傳區塊美化
 st.markdown("### 📂 Upload Mission Data")
 uploaded_file = st.file_uploader("請上傳 iShares CSV 檔案", type=['csv'], label_visibility="collapsed")
 
@@ -152,7 +161,7 @@ if uploaded_file is not None:
         st.error(f"❌ 檔案讀取失敗: {error_msg}")
     else:
         if debug_mode:
-            st.warning("🐞 Debug View: Raw Data")
+            st.warning("🐞 Raw Data Preview")
             st.dataframe(df.head())
 
         try:
@@ -164,7 +173,6 @@ if uploaded_file is not None:
             df_valid = df.dropna(subset=['Market_Clean', 'Par_Clean', 'Maturity_Dt']).copy()
             df_valid['Bond_Price'] = (df_valid['Market_Clean'] / df_valid['Par_Clean']) * 100
             
-            # 產生搜尋連結
             df_valid['Ticker_Search'] = "https://www.google.com/search?q=" + df_valid['Name'].str.replace(' ', '+') + "+stock+ticker"
             
             mask_date = (df_valid['Maturity_Dt'] >= datetime(2026, 1, 1)) & \
@@ -174,14 +182,19 @@ if uploaded_file is not None:
             if len(df_time) > 0:
                 # 篩選
                 if ignore_coupon:
-                    danger = df_time[df_time['Bond_Price'] < danger_price].sort_values('Bond_Price')
+                    danger = df_time[df_time['Bond_Price'] < danger_price]
                 else:
                     df_time['Coupon_Clean'] = df_time['Coupon (%)'].apply(clean_currency)
-                    danger = df_time[(df_time['Bond_Price'] < danger_price) & (df_time['Coupon_Clean'] < 2.0)].sort_values('Bond_Price')
+                    danger = df_time[(df_time['Bond_Price'] < danger_price) & (df_time['Coupon_Clean'] < 2.0)]
                 
-                rocket = df_time[df_time['Bond_Price'] > rocket_price].sort_values('Bond_Price', ascending=False)
+                rocket = df_time[df_time['Bond_Price'] > rocket_price]
+
+                # ⚠️ 關鍵修正：排序邏輯 (Maturity Ascending)
+                # 越近的日期排在越上面
+                danger = danger.sort_values(by='Maturity_Dt', ascending=True)
+                rocket = rocket.sort_values(by='Maturity_Dt', ascending=True)
                 
-                # --- KPI 儀表板 (Card View) ---
+                # --- KPI 儀表板 ---
                 st.markdown("---")
                 col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
                 
@@ -193,12 +206,10 @@ if uploaded_file is not None:
                 # --- 戰術分頁 ---
                 tab_death, tab_rocket, tab_all = st.tabs(["💀 死亡名單 (Short)", "🚀 火箭名單 (Long)", "📋 完整戰報 (All)"])
 
-                # 設定欄位顯示 (使用 ProgressColumn 讓價格變能量條)
                 column_cfg = {
-                    "Name": st.column_config.TextColumn("公司名稱", width="large", help="發行可轉債的公司"),
+                    "Name": st.column_config.TextColumn("公司名稱", width="large"),
                     "Ticker_Search": st.column_config.LinkColumn("代號", display_text="🔍", width="small"),
                     "Maturity": st.column_config.DateColumn("到期日", format="YYYY-MM-DD", width="medium"),
-                    # 💥 視覺化重點：能量條
                     "Bond_Price": st.column_config.ProgressColumn(
                         "債券價格強度", 
                         format="$%.2f", 
@@ -212,7 +223,7 @@ if uploaded_file is not None:
                 show_cols = ['Name', 'Ticker_Search', 'Maturity', 'Bond_Price', 'Coupon (%)']
 
                 with tab_death:
-                    st.caption(f"篩選條件：價格 < ${danger_price}")
+                    # st.caption(f"篩選條件：價格 < ${danger_price} | 排序：到期日 (近 -> 遠)")
                     if not danger.empty:
                         st.dataframe(
                             danger[show_cols],
@@ -224,7 +235,7 @@ if uploaded_file is not None:
                         st.info("✅ 掃描結果：無高風險威脅。")
 
                 with tab_rocket:
-                    st.caption(f"篩選條件：價格 > ${rocket_price}")
+                    # st.caption(f"篩選條件：價格 > ${rocket_price} | 排序：到期日 (近 -> 遠)")
                     if not rocket.empty:
                         st.dataframe(
                             rocket[show_cols],
@@ -237,7 +248,7 @@ if uploaded_file is not None:
                         
                 with tab_all:
                     st.dataframe(
-                        df_time[show_cols].sort_values('Maturity'),
+                        df_time[show_cols].sort_values('Maturity_Dt', ascending=True),
                         column_config=column_cfg,
                         use_container_width=True,
                         hide_index=True
