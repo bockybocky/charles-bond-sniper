@@ -3,42 +3,34 @@ import pandas as pd
 from datetime import datetime
 import io
 
-# --- 1. 頁面基礎設定 ---
-st.set_page_config(page_title="Charles 戰情室 V10.0", page_icon="⚡", layout="wide")
+# --- 1. 頁面基礎設定 (開啟寬螢幕模式) ---
+st.set_page_config(page_title="Charles 戰情室 V11.0", page_icon="⚡", layout="wide")
 
 # ==========================================
 # 核心功能：親切的說明模組
 # ==========================================
 def render_user_guide():
-    with st.expander("📖 Charles 指揮官手冊 (V10.0 新功能：找代號)", expanded=True):
+    with st.expander("📖 Charles 指揮官手冊 (點我展開/收合)", expanded=False):
         st.markdown("""
         ### 歡迎來到 Charles 專屬可轉債戰情室！ 👋
         
-        #### 🆕 V10.0 更新：美股代號去哪了？
-        iShares 的原始檔案**不包含**美股代號 (Ticker)，這很讓人頭痛。
-        為了解決這個問題，我在表格最後面增加了一個 **「🔍 找代號」** 的連結。
-        * **怎麼用？** 看到感興趣的公司，點擊該欄位的放大鏡，系統會自動幫您 Google 該公司的代號。
-
-        ---
-        
-        #### 1️⃣ 資料下載路徑 (路徑修正)
+        #### 1️⃣ 資料下載 (iShares 官網)
         1. **進入首頁：** [https://www.ishares.com/us](https://www.ishares.com/us) (請留在美國站)。
         2. **搜索：** 點右上角搜尋 **`ICVT`** -> 點擊 **"iShares Convertible Bond ETF"**。
         3. **下載：** 找到 **"Holdings"** 區塊 -> 點 **"Download"** -> 選 **"CSV"**。
         4. **上傳：** 拖進下方框框。
 
-        ---
+        #### 2️⃣ 如何看懂這張表？
+        此版本已採用 **「全寬度分頁」** 設計，請點擊下方的 **「💀 死亡名單」** 或 **「🚀 火箭名單」** 標籤切換查看。
         
-        #### 2️⃣ 參數與解讀
-        * **💀 死亡名單 (紅色)：** 債券價格 < $95 (且低息)。暗示**還錢有困難**。
-        * **🚀 火箭名單 (綠色)：** 債券價格 > $130。暗示股價大漲，**無償債壓力**。
+        * **🔍 找代號：** 點擊表格中的「🔍 找代號」連結，系統會自動幫您 Google 美股代號。
         """)
 
 # --- 2. 側邊欄：控制中心 ---
 with st.sidebar:
     st.header("🎛️ Charles 戰術控制台")
     
-    st.info("💡 iShares 原檔無代號，已新增「Google 搜尋連結」功能。")
+    st.success("✅ 目前模式：寬螢幕優化 (Tab View)")
     
     # 參數設定
     st.subheader("💀 死亡名單標準")
@@ -112,12 +104,10 @@ if uploaded_file is not None:
             df['Par_Clean'] = df['Par Value'].apply(clean_currency)
             df['Maturity_Dt'] = pd.to_datetime(df['Maturity'], errors='coerce')
             
-            # 價格計算
             df_valid = df.dropna(subset=['Market_Clean', 'Par_Clean', 'Maturity_Dt']).copy()
             df_valid['Bond_Price'] = (df_valid['Market_Clean'] / df_valid['Par_Clean']) * 100
             
-            # 產生搜尋連結 (解決沒有 Ticker 的問題)
-            # 邏輯：Google Search "Company Name stock ticker"
+            # 產生搜尋連結
             df_valid['Ticker_Search'] = "https://www.google.com/search?q=" + df_valid['Name'].str.replace(' ', '+') + "+stock+ticker"
             
             # 鎖定 2026-2027
@@ -126,52 +116,68 @@ if uploaded_file is not None:
             df_time = df_valid[mask_date].copy()
             
             if len(df_time) > 0:
-                st.success(f"✅ 分析完成！共鎖定 {len(df_time)} 檔標的。")
-                
                 # 篩選名單
                 if ignore_coupon:
-                    danger = df_time[df_time['Bond_Price'] < danger_price]
+                    danger = df_time[df_time['Bond_Price'] < danger_price].sort_values('Bond_Price')
                 else:
                     df_time['Coupon_Clean'] = df_time['Coupon (%)'].apply(clean_currency)
-                    danger = df_time[(df_time['Bond_Price'] < danger_price) & (df_time['Coupon_Clean'] < 2.0)]
+                    danger = df_time[(df_time['Bond_Price'] < danger_price) & (df_time['Coupon_Clean'] < 2.0)].sort_values('Bond_Price')
                 
-                rocket = df_time[df_time['Bond_Price'] > rocket_price]
+                rocket = df_time[df_time['Bond_Price'] > rocket_price].sort_values('Bond_Price', ascending=False)
                 
-                # 顯示設定
+                # --- 新功能：戰情儀表板 (Metrics) ---
+                st.markdown("---")
+                m1, m2, m3 = st.columns(3)
+                m1.metric("📊 2026-27 到期總數", f"{len(df_time)} 檔")
+                m2.metric("💀 死亡名單 (潛在空單)", f"{len(danger)} 檔", delta=f"佔比 {len(danger)/len(df_time):.1%}", delta_color="inverse")
+                m3.metric("🚀 火箭名單 (多頭確認)", f"{len(rocket)} 檔", delta=f"佔比 {len(rocket)/len(df_time):.1%}")
+                st.markdown("---")
+
+                # --- 新功能：全寬分頁切換 (Tabs) ---
+                tab_death, tab_rocket, tab_all = st.tabs(["💀 死亡名單 (High Risk)", "🚀 火箭名單 (High Reward)", "📋 完整清單"])
+                
+                # 設定欄位顯示格式
                 column_cfg = {
-                    "Name": st.column_config.TextColumn("公司名稱", width="medium"),
-                    "Maturity": st.column_config.DateColumn("到期日", format="YYYY-MM-DD"),
-                    "Bond_Price": st.column_config.NumberColumn("債券價格 ($)", format="%.2f"),
-                    "Coupon (%)": st.column_config.NumberColumn("利率 (%)", format="%.2f%%"),
-                    # 關鍵新功能：搜尋連結
-                    "Ticker_Search": st.column_config.LinkColumn("美股代號", display_text="🔍 找代號"),
+                    "Name": st.column_config.TextColumn("公司名稱", width="large"), # 加寬名稱欄
+                    "Ticker_Search": st.column_config.LinkColumn("代號搜尋", display_text="🔍 找代號", width="small"),
+                    "Maturity": st.column_config.DateColumn("到期日", format="YYYY-MM-DD", width="small"),
+                    "Bond_Price": st.column_config.NumberColumn("債券價格 ($)", format="%.2f", width="small"),
+                    "Coupon (%)": st.column_config.NumberColumn("利率 (%)", format="%.2f%%", width="small"),
                 }
                 
-                # 顯示結果
-                st.markdown("---")
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.subheader(f"💀 死亡名單 ({len(danger)})")
+                # 顯示欄位
+                show_cols = ['Name', 'Ticker_Search', 'Maturity', 'Bond_Price', 'Coupon (%)']
+
+                with tab_death:
                     if not danger.empty:
                         st.dataframe(
-                            danger[['Name', 'Ticker_Search', 'Maturity', 'Bond_Price', 'Coupon (%)']],
+                            danger[show_cols],
                             column_config=column_cfg,
-                            use_container_width=True
+                            use_container_width=True, # 關鍵：使用全寬度
+                            hide_index=True
                         )
                     else:
-                        st.info("無符合條件標的。")
+                        st.info("✅ 目前無高風險標的。")
 
-                with col2:
-                    st.subheader(f"🚀 火箭名單 ({len(rocket)})")
+                with tab_rocket:
                     if not rocket.empty:
                         st.dataframe(
-                            rocket[['Name', 'Ticker_Search', 'Maturity', 'Bond_Price', 'Coupon (%)']],
+                            rocket[show_cols],
                             column_config=column_cfg,
-                            use_container_width=True
+                            use_container_width=True, # 關鍵：使用全寬度
+                            hide_index=True
                         )
                     else:
-                        st.info("無符合條件標的。")
+                        st.info("⚠️ 目前無飆漲標的。")
+                        
+                with tab_all:
+                    st.dataframe(
+                        df_time[show_cols].sort_values('Maturity'),
+                        column_config=column_cfg,
+                        use_container_width=True,
+                        hide_index=True
+                    )
+
             else:
                 st.warning("⚠️ 檔案中沒有發現 2026-2027 年到期的債券。")
                 
