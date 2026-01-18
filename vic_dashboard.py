@@ -5,7 +5,7 @@ import io
 
 # --- 1. 頁面基礎設定 ---
 st.set_page_config(page_title="VIC 戰情室 V8.0", page_icon="⚡", layout="wide")
-st.title("⚡ VIC 可轉債戰情室 (V8.0 輕量版)")
+st.title("⚡ Charles 可轉債戰情室 (V8.0 輕量版)")
 
 # --- 2. 側邊欄：控制中心 ---
 with st.sidebar:
@@ -139,3 +139,4 @@ if uploaded_file is not None:
                 
         except Exception as e:
             st.error(f"❌ 運算錯誤: {e}")
+
