@@ -5,7 +5,7 @@ import io
 
 # --- 1. 頁面基礎設定 ---
 st.set_page_config(
-    page_title="Charles 戰情室 V16.0", 
+    page_title="Charles 戰情室 V16.1", 
     page_icon="⚡", 
     layout="wide",
     initial_sidebar_state="expanded"
@@ -86,6 +86,7 @@ def render_user_guide():
         
         #### 2️⃣ 戰術看板解讀
         * **排序：** 依 **「到期日 (近 -> 遠)」** 排列。
+        * **發行年份：** 自動偵測 CSV 是否包含發行日資訊。
         * **💀 死亡名單：** 價格 < $95 (還款壓力大)。
         * **🚀 火箭名單：** 價格 > $130 (轉股獲利)。
         """)
@@ -150,7 +151,7 @@ def robust_parser(file):
 
 # --- 4. 主程式邏輯 ---
 st.title("Charles Convertible Sniper")
-st.caption("VIC System V16.0 // Stable Core")
+st.caption("VIC System V16.1 // Enhanced Intel")
 
 render_user_guide()
 
@@ -177,6 +178,7 @@ if uploaded_file is not None:
             col_par = find_column(df, ['Par Value', 'Par', 'Principal Amount'])
             col_maturity = find_column(df, ['Maturity', 'Maturity Date', 'Mat Date', 'Due Date'])
             col_coupon = find_column(df, ['Coupon (%)', 'Coupon', 'Cpn'])
+            col_issue = find_column(df, ['Issue Date', 'Issue', 'Dated Date']) # 新增偵測發行日
 
             # 3. 檢查
             missing_cols = []
@@ -196,6 +198,13 @@ if uploaded_file is not None:
                 # 確保 Maturity_Dt 正確生成
                 df['Maturity_Dt'] = pd.to_datetime(df[col_maturity], errors='coerce')
                 
+                # 處理發行年份 (Issue Year)
+                if col_issue:
+                    df['Issue_Dt'] = pd.to_datetime(df[col_issue], errors='coerce')
+                    df['Issue_Year'] = df['Issue_Dt'].dt.year
+                else:
+                    df['Issue_Year'] = None # 若無欄位則留空
+
                 # 若有 Coupon 則清洗
                 if col_coupon:
                     df['Coupon_Clean'] = df[col_coupon].apply(clean_currency)
@@ -237,17 +246,20 @@ if uploaded_file is not None:
 
                     tab1, tab2, tab3 = st.tabs(["💀 死亡名單", "🚀 火箭名單", "📋 完整戰報"])
                     
-                    # 設定欄位對應
-                    # 直接使用已經存在的欄位名：Name_Clean, Maturity_Dt, Coupon_Clean
+                    # 設定欄位對應與格式
                     col_cfg = {
                         "Name_Clean": st.column_config.TextColumn("公司名稱", width="large"),
                         "Ticker_Search": st.column_config.LinkColumn("代號", display_text="🔍", width="small"),
                         "Maturity_Dt": st.column_config.DateColumn("到期日", format="YYYY-MM-DD", width="medium"),
+                        "Issue_Year": st.column_config.NumberColumn("發行年", format="%d", width="small"),
                         "Bond_Price": st.column_config.ProgressColumn("價格強度", format="$%.2f", min_value=0, max_value=200, width="medium"),
-                        "Coupon_Clean": st.column_config.NumberColumn("利率", format="%.2f%%", width="small")
+                        "Coupon_Clean": st.column_config.NumberColumn("票面利率", format="%.2f%%", width="small"),
+                        "Par_Clean": st.column_config.NumberColumn("票面總額 (Amount)", format="$%d", width="medium"),
+                        "Market_Clean": st.column_config.NumberColumn("持有市值", format="$%d", width="medium")
                     }
                     
-                    final_cols = ['Name_Clean', 'Ticker_Search', 'Maturity_Dt', 'Bond_Price', 'Coupon_Clean']
+                    # 決定顯示欄位 (加入 Amount 和 Issue Year)
+                    final_cols = ['Name_Clean', 'Ticker_Search', 'Maturity_Dt', 'Issue_Year', 'Coupon_Clean', 'Bond_Price', 'Par_Clean']
 
                     with tab1:
                         if not danger.empty:
