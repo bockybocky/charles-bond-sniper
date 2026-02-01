@@ -3,16 +3,16 @@ import pandas as pd
 from datetime import datetime
 import io
 
-# --- 1. 頁面基礎設定 (維持 Wide 佈局) ---
+# --- 1. 頁面基礎設定 ---
 st.set_page_config(
-    page_title="Charles 戰情室 V17.1 Dark", 
+    page_title="Charles 戰情室 V17.2 繁中版", 
     page_icon="⚡", 
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
 # ==========================================
-# 🎨 核心美化模組 (Dark Mode - 彭博戰術風格)
+# 🎨 核心美化模組 (Dark Mode - 繁中適配)
 # ==========================================
 def inject_custom_css():
     st.markdown("""
@@ -21,16 +21,16 @@ def inject_custom_css():
         .stApp {
             background-color: #0E1117;
             color: #FAFAFA; 
-            font-family: 'SF Mono', 'Roboto Mono', 'Segoe UI', sans-serif; /* 改用等寬字體增加科技感 */
+            font-family: 'Microsoft JhengHei', 'Segoe UI', sans-serif; /* 強制微軟正黑體 */
         }
         
-        /* 側邊欄：更深的灰 */
+        /* 側邊欄 */
         [data-testid="stSidebar"] {
             background-color: #161B22;
             border-right: 1px solid #30363D;
         }
         
-        /* 標題 H1：霓虹漸層 */
+        /* 標題 H1 */
         h1 {
             background: linear-gradient(to right, #00E5FF, #2979FF);
             -webkit-background-clip: text;
@@ -39,16 +39,10 @@ def inject_custom_css():
             font-size: 2.2rem !important;
             margin-bottom: 10px;
             padding-top: 10px;
-            letter-spacing: 1px;
+            letter-spacing: 2px;
         }
         
-        /* 副標題說明文字 */
-        .sidebar-text {
-            color: #8B949E;
-            font-size: 0.85rem;
-        }
-        
-        /* 關鍵指標 (Metric) 數字：高亮霓虹青 */
+        /* 關鍵指標 (Metric) 數字 */
         div[data-testid="stMetricValue"] {
             font-size: 2rem;
             color: #00FFD1; /* Neon Cyan */
@@ -57,6 +51,7 @@ def inject_custom_css():
         }
         div[data-testid="stMetricLabel"] {
             color: #8B949E;
+            font-size: 1rem;
         }
         
         /* 分頁籤 (Tabs) */
@@ -80,13 +75,13 @@ def inject_custom_css():
             box-shadow: 0 0 8px rgba(31, 111, 235, 0.4);
         }
 
-        /* 表格優化 (強制暗色模式適配) */
+        /* 表格優化 */
         [data-testid="stDataFrame"] {
             border: 1px solid #30363D;
             border-radius: 5px;
         }
         
-        /* 提示框顏色微調 */
+        /* 提示框顏色 */
         .stAlert {
             background-color: #161B22;
             border: 1px solid #30363D;
@@ -101,7 +96,7 @@ inject_custom_css()
 # 📖 說明模組
 # ==========================================
 def render_user_guide():
-    with st.expander("📘 指揮官操作手冊 (V17.1 暗黑戰術版)", expanded=False):
+    with st.expander("📘 指揮官操作手冊 (V17.2 暗黑繁中版)", expanded=False):
         st.markdown("""
         #### 1️⃣ 數據源 (官方情報)
         * 請至 [iShares US](https://www.ishares.com/us) 搜尋 `ICVT` 下載 CSV。
@@ -173,7 +168,7 @@ def robust_parser(file):
 
 # --- 4. 主程式邏輯 ---
 st.title("Charles Convertible Sniper")
-st.caption("VIC System V17.1 // Dark Knight Edition")
+st.caption("VIC System V17.2 // Traditional Chinese")
 
 render_user_guide()
 
@@ -266,22 +261,22 @@ if uploaded_file is not None:
                     # --- 4. 儀表板顯示 ---
                     st.markdown("---")
                     c1, c2, c3 = st.columns(3)
-                    c1.metric("📊 戰術雷達", f"{len(df_time)}", "2026-27 Targets")
-                    c2.metric("💀 死亡名單", f"{len(danger)}", f"Rate: {len(danger)/len(df_time):.1%}", delta_color="off")
-                    c3.metric("🚀 火箭名單", f"{len(rocket)}", f"Rate: {len(rocket)/len(df_time):.1%}", delta_color="normal")
+                    c1.metric("📊 戰術雷達", f"{len(df_time)}", "2026-27 到期目標")
+                    c2.metric("💀 死亡名單", f"{len(danger)}", f"佔比: {len(danger)/len(df_time):.1%}", delta_color="off")
+                    c3.metric("🚀 火箭名單", f"{len(rocket)}", f"佔比: {len(rocket)/len(df_time):.1%}", delta_color="normal")
                     st.markdown("---")
 
-                    tab1, tab2, tab3 = st.tabs(["💀 DEATH LIST", "🚀 ROCKET LIST", "📋 FULL REPORT"])
+                    tab1, tab2, tab3 = st.tabs(["💀 死亡名單", "🚀 火箭名單", "📋 完整戰報"])
                     
                     col_cfg = {
-                        "Name_Clean": st.column_config.TextColumn("Company", width="large"),
-                        "Ticker_Search": st.column_config.LinkColumn("Info", display_text="🔍", width="small"),
-                        "Maturity_Dt": st.column_config.DateColumn("Maturity", format="YYYY-MM-DD", width="medium"),
-                        "Issue_Year": st.column_config.NumberColumn("Issue Yr", format="%d", width="small"),
-                        "Bond_Price": st.column_config.ProgressColumn("Price Strength", format="$%.2f", min_value=0, max_value=200, width="medium"),
-                        "Coupon_Clean": st.column_config.NumberColumn("Cpn %", format="%.2f%%", width="small"),
-                        "Par_Clean": st.column_config.NumberColumn("Par Value ($)", format="$%d", width="medium"),
-                        "Market_Clean": st.column_config.NumberColumn("Mkt Value ($)", format="$%d", width="medium")
+                        "Name_Clean": st.column_config.TextColumn("公司名稱", width="large"),
+                        "Ticker_Search": st.column_config.LinkColumn("資訊", display_text="🔍", width="small"),
+                        "Maturity_Dt": st.column_config.DateColumn("到期日", format="YYYY-MM-DD", width="medium"),
+                        "Issue_Year": st.column_config.NumberColumn("發行年份", format="%d", width="small"),
+                        "Bond_Price": st.column_config.ProgressColumn("價格強度", format="$%.2f", min_value=0, max_value=200, width="medium"),
+                        "Coupon_Clean": st.column_config.NumberColumn("票面利率", format="%.2f%%", width="small"),
+                        "Par_Clean": st.column_config.NumberColumn("票面總額 ($)", format="$%d", width="medium"),
+                        "Market_Clean": st.column_config.NumberColumn("持有市值 ($)", format="$%d", width="medium")
                     }
                     
                     final_cols = ['Name_Clean', 'Ticker_Search', 'Maturity_Dt', 'Issue_Year', 'Coupon_Clean', 'Bond_Price', 'Par_Clean']
@@ -289,17 +284,17 @@ if uploaded_file is not None:
                     with tab1:
                         if not danger.empty:
                             st.dataframe(danger[final_cols], column_config=col_cfg, use_container_width=True, hide_index=True)
-                        else: st.info("✅ NO THREATS DETECTED.")
+                        else: st.info("✅ 掃描完畢：無高風險威脅。")
 
                     with tab2:
                         if not rocket.empty:
                             st.dataframe(rocket[final_cols], column_config=col_cfg, use_container_width=True, hide_index=True)
-                        else: st.info("⚠️ NO TARGETS.")
+                        else: st.info("⚠️ 掃描完畢：無高動能目標。")
                         
                     with tab3:
                         st.dataframe(df_all[final_cols], column_config=col_cfg, use_container_width=True, hide_index=True)
                 else:
-                    st.warning("⚠️ NO DATA FOUND FOR 2026-2027.")
+                    st.warning("⚠️ 檔案中未發現 2026-2027 到期目標。")
         except Exception as e:
-            st.error(f"❌ SYSTEM ERROR: {e}")
+            st.error(f"❌ 系統錯誤: {e}")
             if debug_mode: st.exception(e)
